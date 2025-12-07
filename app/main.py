@@ -1,70 +1,53 @@
-"""
-Main application entry point
-"""
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+from typing import List
 
-from app.core.config import settings
-from app.api.v1.router import api_router
+from app.database import engine, Base, get_db
+from app.models import User
+from app.schemas import UserCreate, UserResponse, Token
+from app.auth import get_password_hash, verify_password, create_access_token
 
-# Create FastAPI app
+# Create database tables
+Base.metadata.create_all(bind=engine)
+
 app = FastAPI(
-    title=settings.PROJECT_NAME,
-    version=settings.VERSION,
-    description="Microservicio empresarial de gestión de usuarios con arquitectura limpia",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url=f"{settings.API_V1_PREFIX}/openapi.json"
+    title="User Management API",
+    description="FastAPI User Management with JWT Auth",
+    version="1.0.0"
 )
 
-# Configure CORS
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=settings.ALLOWED_METHODS,
-    allow_headers=settings.ALLOWED_HEADERS,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Include API router
-app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+@app.get("/")
+def read_root():
+    return {
+        "message": "User Management API",
+        "version": "1.0.0",
+        "docs": "/docs"
+    }
 
+@app.post("/api/auth/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def register(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.email == user.email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
 
-@app.get("/", tags=["Health"])
-async def root():
-    """
-    Health check endpoint
-    """
-    return JSONResponse(
-        content={
-            "message": "FastAPI User Management API",
-            "version": settings.VERSION,
-            "status": "running",
-            "docs": "/docs"
-        }
-    )
+    hashed_password = get_password_hash(user.password)
+    db_user = User(email=user.email, username=user.username, hashed_password=hashed_password)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
 
-
-@app.get("/health", tags=["Health"])
-async def health_check():
-    """
-    Detailed health check
-    """
-    return JSONResponse(
-        content={
-            "status": "healthy",
-            "service": settings.PROJECT_NAME,
-            "version": settings.VERSION
-        }
-    )
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        "app.main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.DEBUG
-    )
+@app.get("/api/users", response_model=List[UserResponse])
+def get_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    users = db.query(User).offset(skip).limit(limit).all()
+    return users

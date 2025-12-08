@@ -5,39 +5,47 @@ import pytest
 from fastapi import status
 
 
-def test_register_user(client, user_data):
+def test_register_user(client):
     """Test user registration"""
-    response = client.post("/api/v1/auth/register", json=user_data)
+    response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "newuser@example.com",
+            "username": "newuser",
+            "password": "password123",
+            "full_name": "New User",
+        },
+    )
     assert response.status_code == status.HTTP_201_CREATED
     data = response.json()
-    assert data["email"] == user_data["email"]
-    assert data["full_name"] == user_data["full_name"]
+    assert data["email"] == "newuser@example.com"
+    assert data["username"] == "newuser"
     assert "id" in data
     assert "hashed_password" not in data
 
 
-def test_register_duplicate_email(client, user_data):
-    """Test registration with duplicate email fails"""
-    # Register first user
-    client.post("/api/v1/auth/register", json=user_data)
-
-    # Try to register with same email
-    response = client.post("/api/v1/auth/register", json=user_data)
+def test_register_duplicate_email(client, test_user, test_user_data):
+    """Test registration with duplicate email"""
+    response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": test_user_data["email"],
+            "username": "anotheruser",
+            "password": "password123",
+        },
+    )
     assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "already registered" in response.json()["detail"].lower()
 
 
-def test_login_success(client, user_data):
+def test_login_success(client, test_user, test_user_data):
     """Test successful login"""
-    # Register user
-    client.post("/api/v1/auth/register", json=user_data)
-
-    # Login
     response = client.post(
         "/api/v1/auth/login",
         data={
-            "username": user_data["email"],
-            "password": user_data["password"]
-        }
+            "username": test_user_data["email"],
+            "password": test_user_data["password"],
+        },
     )
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -46,29 +54,47 @@ def test_login_success(client, user_data):
     assert data["token_type"] == "bearer"
 
 
-def test_login_wrong_password(client, user_data):
-    """Test login with wrong password fails"""
-    # Register user
-    client.post("/api/v1/auth/register", json=user_data)
-
-    # Login with wrong password
+def test_login_invalid_credentials(client, test_user):
+    """Test login with invalid credentials"""
     response = client.post(
         "/api/v1/auth/login",
-        data={
-            "username": user_data["email"],
-            "password": "WrongPassword"
-        }
+        data={"username": "test@example.com", "password": "wrongpassword"},
     )
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
-def test_login_nonexistent_user(client):
-    """Test login with non-existent user fails"""
-    response = client.post(
+def test_get_current_user(client, auth_headers):
+    """Test getting current user info"""
+    response = client.get("/api/v1/auth/me", headers=auth_headers)
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["email"] == "test@example.com"
+    assert data["username"] == "testuser"
+
+
+def test_get_current_user_unauthorized(client):
+    """Test getting current user without authentication"""
+    response = client.get("/api/v1/auth/me")
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+def test_refresh_token(client, test_user, test_user_data):
+    """Test token refresh"""
+    # Login to get refresh token
+    login_response = client.post(
         "/api/v1/auth/login",
         data={
-            "username": "nonexistent@example.com",
-            "password": "SomePassword"
-        }
+            "username": test_user_data["email"],
+            "password": test_user_data["password"],
+        },
     )
-    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    refresh_token = login_response.json()["refresh_token"]
+
+    # Refresh access token
+    response = client.post(
+        "/api/v1/auth/refresh", json={"refresh_token": refresh_token}
+    )
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert "access_token" in data
+    assert data["token_type"] == "bearer"

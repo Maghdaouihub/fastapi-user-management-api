@@ -1,67 +1,55 @@
 """
-Application settings and configuration
+Application configuration module
+Handles all environment variables and settings
 """
-from typing import List
 from pydantic_settings import BaseSettings
-from pydantic import Field, validator
+from typing import Optional
+from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    """
-    Application settings loaded from environment variables
-    """
-    # Application
-    PROJECT_NAME: str = "FastAPI User Management API"
-    VERSION: str = "1.0.0"
+    """Application settings with environment variable support"""
+
+    # API Settings
     API_V1_PREFIX: str = "/api/v1"
-    DEBUG: bool = False
+    PROJECT_NAME: str = "User Management API"
+    VERSION: str = "1.0.0"
+    DESCRIPTION: str = "FastAPI User Management with JWT Authentication"
 
-    # Server
-    HOST: str = "0.0.0.0"
-    PORT: int = 8000
+    # Database Settings
+    DATABASE_URL: str = "postgresql://user:password@localhost:5432/userdb"
+    DATABASE_ECHO: bool = False
 
-    # Database
-    DATABASE_URL: str = Field(..., env="DATABASE_URL")
-    DB_ECHO: bool = False
-
-    # Security
-    SECRET_KEY: str = Field(..., env="SECRET_KEY")
+    # Security Settings
+    SECRET_KEY: str = "your-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # CORS
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"]
-    ALLOWED_METHODS: List[str] = ["*"]
-    ALLOWED_HEADERS: List[str] = ["*"]
+    # CORS Settings
+    BACKEND_CORS_ORIGINS: list = ["http://localhost:3000", "http://localhost:8080"]
 
-    # First Superuser
-    FIRST_SUPERUSER_EMAIL: str = "admin@example.com"
-    FIRST_SUPERUSER_PASSWORD: str = "changethis"
-    FIRST_SUPERUSER_FULLNAME: str = "Admin User"
+    # Redis Settings (Optional)
+    REDIS_URL: Optional[str] = None
+    CACHE_EXPIRE_SECONDS: int = 300
 
-    @validator("ALLOWED_ORIGINS", pre=True)
-    def parse_origins(cls, v):
-        if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",")]
-        return v
+    # Pagination
+    DEFAULT_PAGE_SIZE: int = 10
+    MAX_PAGE_SIZE: int = 100
 
-    @validator("ALLOWED_METHODS", pre=True)
-    def parse_methods(cls, v):
-        if isinstance(v, str) and v != "*":
-            return [method.strip() for method in v.split(",")]
-        return ["*"] if v == "*" else v
-
-    @validator("ALLOWED_HEADERS", pre=True)
-    def parse_headers(cls, v):
-        if isinstance(v, str) and v != "*":
-            return [header.strip() for header in v.split(",")]
-        return ["*"] if v == "*" else v
+    # Environment
+    ENVIRONMENT: str = "development"
+    DEBUG: bool = True
 
     class Config:
         env_file = ".env"
         case_sensitive = True
 
 
-# Create settings instance
-settings = Settings()
+@lru_cache()
+def get_settings() -> Settings:
+    """Get cached settings instance"""
+    return Settings()
+
+
+settings = get_settings()

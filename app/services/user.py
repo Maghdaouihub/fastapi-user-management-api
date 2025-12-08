@@ -1,7 +1,9 @@
 """
-User service - Business logic for user operations
+User service
+Handles user management business logic
 """
-from typing import Optional, List
+from typing import List, Optional
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.security import get_password_hash
@@ -11,120 +13,107 @@ from app.schemas.user import UserCreate, UserUpdate
 
 
 class UserService:
-    """
-    User service with business logic
-    """
+    """User service with business logic"""
 
     def __init__(self, db: Session):
         self.db = db
-        self.repository = UserRepository(db)
+        self.user_repo = UserRepository(db)
 
-    def get(self, user_id: int) -> Optional[User]:
-        """
-        Get user by ID
+    def get_user(self, user_id: int) -> Optional[User]:
+        """Get user by ID"""
+        user = self.user_repo.get(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+        return user
 
-        Args:
-            user_id: User ID
+    def get_users(self, skip: int = 0, limit: int = 100) -> List[User]:
+        """Get list of users with pagination"""
+        return self.user_repo.get_multi(skip=skip, limit=limit)
 
-        Returns:
-            User or None
-        """
-        return self.repository.get(user_id)
+    def get_active_users(self, skip: int = 0, limit: int = 100) -> List[User]:
+        """Get list of active users"""
+        return self.user_repo.get_active_users(skip=skip, limit=limit)
 
-    def get_by_email(self, email: str) -> Optional[User]:
-        """
-        Get user by email
+    def create_user(self, user_create: UserCreate) -> User:
+        """Create a new user"""
+        # Check if email exists
+        existing_user = self.user_repo.get_by_email(user_create.email)
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered",
+            )
 
-        Args:
-            email: User email
-
-        Returns:
-            User or None
-        """
-        return self.repository.get_by_email(email)
-
-    def get_multi(self, skip: int = 0, limit: int = 100) -> List[User]:
-        """
-        Get multiple users
-
-        Args:
-            skip: Records to skip
-            limit: Max records to return
-
-        Returns:
-            List of users
-        """
-        return self.repository.get_multi(skip=skip, limit=limit)
-
-    def create(self, user_in: UserCreate) -> Optional[User]:
-        """
-        Create new user
-
-        Args:
-            user_in: User creation data
-
-        Returns:
-            Created user or None if email exists
-        """
-        # Check if email already exists
-        if self.repository.email_exists(user_in.email):
-            return None
-
-        # Hash password
-        hashed_password = get_password_hash(user_in.password)
-
-        # Create user data
-        user_data = {
-            "email": user_in.email,
-            "hashed_password": hashed_password,
-            "full_name": user_in.full_name,
-            "is_active": True,
-            "is_superuser": False
-        }
+        # Check if username exists
+        existing_username = self.user_repo.get_by_username(user_create.username)
+        if existing_username:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already taken",
+            )
 
         # Create user
-        return self.repository.create(user_data)
+        hashed_password = get_password_hash(user_create.password)
+        user_data = {
+            "email": user_create.email,
+            "username": user_create.username,
+            "full_name": user_create.full_name,
+            "hashed_password": hashed_password,
+        }
 
-    def update(self, user_id: int, user_in: UserUpdate) -> Optional[User]:
-        """
-        Update user
+        return self.user_repo.create(user_data)
 
-        Args:
-            user_id: User ID
-            user_in: User update data
+    def update_user(self, user_id: int, user_update: UserUpdate) -> User:
+        """Update user information"""
+        user = self.user_repo.get(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
 
-        Returns:
-            Updated user or None
-        """
         # Prepare update data
-        update_data = {}
+        update_data = user_update.dict(exclude_unset=True)
 
-        if user_in.email is not None:
-            # Check if new email already exists
-            if self.repository.email_exists(user_in.email):
-                return None
-            update_data["email"] = user_in.email
+        # Hash password if provided
+        if "password" in update_data:
+            update_data["hashed_password"] = get_password_hash(
+                update_data.pop("password")
+            )
 
-        if user_in.password is not None:
-            update_data["hashed_password"] = get_password_hash(user_in.password)
+        # Check email uniqueness if changing
+        if "email" in update_data and update_data["email"] != user.email:
+            existing_user = self.user_repo.get_by_email(update_data["email"])
+            if existing_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already registered",
+                )
 
-        if user_in.full_name is not None:
-            update_data["full_name"] = user_in.full_name
+        return self.user_repo.update(user_id, update_data)
 
-        if user_in.is_active is not None:
-            update_data["is_active"] = user_in.is_active
+    def delete_user(self, user_id: int) -> bool:
+        """Delete a user"""
+        user = self.user_repo.get(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
 
-        # Update user
-        return self.repository.update(user_id, update_data)
+        return self.user_repo.delete(user_id)
 
-    def delete(self, user_id: int) -> bool:
-        """
-        Delete user
+    def activate_user(self, user_id: int) -> User:
+        """Activate a user"""
+        return self.user_repo.update(user_id, {"is_active": True})
 
-        Args:
-            user_id: User ID
+    def deactivate_user(self, user_id: int) -> User:
+        """Deactivate a user"""
+        return self.user_repo.update(user_id, {"is_active": False})
 
-        Returns:
-            True if deleted, False otherwise
-        """
-        return self.repository.delete(user_id)
+    def get_user_count(self) -> int:
+        """Get total user count"""
+        return self.user_repo.count()

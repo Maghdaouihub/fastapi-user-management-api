@@ -1,92 +1,92 @@
 """
 Authentication endpoints
+Handles user registration, login, and token management
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
+from app.core.security import get_current_user, decode_token
 from app.db.session import get_db
+from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse
-from app.schemas.token import TokenResponse
+from app.schemas.token import Token, TokenPair, RefreshToken
 from app.services.auth import AuthService
 
 router = APIRouter()
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(
-    user_in: UserCreate,
+def register(
+    user_create: UserCreate,
     db: Session = Depends(get_db)
 ):
     """
     Register a new user
 
-    - **email**: User email address (must be unique)
-    - **password**: User password (min 8 characters)
-    - **full_name**: User full name (optional)
+    - **email**: Valid email address
+    - **username**: Unique username (3-50 characters)
+    - **password**: Strong password (min 8 characters)
+    - **full_name**: Optional full name
     """
     auth_service = AuthService(db)
-    user = auth_service.register(user_in)
-
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
-
-    return user
+    return auth_service.register(user_create)
 
 
-@router.post("/login", response_model=TokenResponse)
-async def login(
+@router.post("/login", response_model=TokenPair)
+def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
     """
     Login with email and password
 
-    - **username**: User email address
-    - **password**: User password
-
     Returns access token and refresh token
     """
     auth_service = AuthService(db)
-    token_data = auth_service.login(
-        email=form_data.username,
-        password=form_data.password
-    )
-
-    if token_data is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    return token_data
+    return auth_service.login(form_data.username, form_data.password)
 
 
-@router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(
-    refresh_token: str,
+@router.post("/refresh", response_model=Token)
+def refresh_token(
+    refresh_data: RefreshToken,
     db: Session = Depends(get_db)
 ):
     """
     Refresh access token using refresh token
-
-    - **refresh_token**: Valid refresh token
-
-    Returns new access token and refresh token
     """
-    auth_service = AuthService(db)
-    token_data = auth_service.refresh_token(refresh_token)
+    payload = decode_token(refresh_data.refresh_token)
 
-    if token_data is None:
+    if payload.get("type") != "refresh":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="Invalid token type"
         )
 
-    return token_data
+    user_id = payload.get("sub")
+    auth_service = AuthService(db)
+    return auth_service.refresh_access_token(user_id)
+
+
+@router.get("/me", response_model=UserResponse)
+def get_current_user_info(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get current authenticated user information
+    """
+    return current_user
+
+
+@router.post("/change-password", response_model=UserResponse)
+def change_password(
+    current_password: str,
+    new_password: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Change current user password
+    """
+    auth_service = AuthService(db)
+    return auth_service.change_password(current_user, current_password, new_password)

@@ -1,5 +1,10 @@
 """
-Import all models here for Alembic to detect them
+Database base module
+Imports all models for Alembic migrations
 """
-from app.models.base import Base  # noqa
-from app.models.user import User  # noqa
+from app.db.session import Base
+
+# Import all models here for Alembic to detect them
+from app.models.user import User
+
+__all__ = ["Base", "User"]

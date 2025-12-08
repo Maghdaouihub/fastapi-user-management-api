@@ -1,53 +1,72 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+"""
+FastAPI User Management API
+Main application entry point
+"""
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-from typing import List
+from fastapi.responses import JSONResponse
 
-from app.database import engine, Base, get_db
-from app.models import User
-from app.schemas import UserCreate, UserResponse, Token
-from app.auth import get_password_hash, verify_password, create_access_token
+from app.core.config import settings
+from app.core.logging import setup_logging
+from app.api.v1.api import api_router
+from app.db.session import init_db
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+# Setup logging
+setup_logging()
 
+# Create FastAPI application
 app = FastAPI(
-    title="User Management API",
-    description="FastAPI User Management with JWT Auth",
-    version="1.0.0"
+    title=settings.PROJECT_NAME,
+    description=settings.DESCRIPTION,
+    version=settings.VERSION,
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
-# CORS middleware
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.get("/")
-def read_root():
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database on startup"""
+    init_db()
+
+
+@app.get("/", tags=["root"])
+async def root():
+    """Root endpoint"""
     return {
-        "message": "User Management API",
-        "version": "1.0.0",
-        "docs": "/docs"
+        "message": "Welcome to User Management API",
+        "version": settings.VERSION,
+        "docs": "/docs",
+        "redoc": "/redoc",
     }
 
-@app.post("/api/auth/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(User.email == user.email).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
 
-    hashed_password = get_password_hash(user.password)
-    db_user = User(email=user.email, username=user.username, hashed_password=hashed_password)
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
+@app.get("/health", tags=["health"])
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "environment": settings.ENVIRONMENT}
 
-@app.get("/api/users", response_model=List[UserResponse])
-def get_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    users = db.query(User).offset(skip).limit(limit).all()
-    return users
+
+# Include API v1 routes
+app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=settings.DEBUG,
+        log_level="debug" if settings.DEBUG else "info",
+    )

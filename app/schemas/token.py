@@ -1,41 +1,33 @@
 """
-Token Pydantic schemas
+Token Pydantic schemas for authentication
 """
+from pydantic import BaseModel
 from typing import Optional
-from pydantic import BaseModel, ConfigDict
 
 
 class Token(BaseModel):
-    """
-    Base token schema
-    """
+    """Access token response"""
+
     access_token: str
     token_type: str = "bearer"
 
 
-class TokenResponse(Token):
-    """
-    Complete token response with refresh token
-    """
-    refresh_token: str
-    expires_in: int
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                "token_type": "bearer",
-                "expires_in": 1800
-            }
-        }
-    )
-
-
 class TokenPayload(BaseModel):
-    """
-    JWT token payload
-    """
+    """Token payload data"""
+
     sub: Optional[int] = None
     exp: Optional[int] = None
-    type: Optional[str] = None
+
+
+class RefreshToken(BaseModel):
+    """Refresh token request"""
+
+    refresh_token: str
+
+
+class TokenPair(BaseModel):
+    """Access and refresh token pair"""
+
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"

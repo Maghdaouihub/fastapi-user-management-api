@@ -1,129 +1,117 @@
 """
-Authentication service - Business logic for auth operations
+Authentication service
+Handles user registration, login, and token management
 """
-from typing import Optional
 from datetime import timedelta
+from typing import Optional
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import verify_password, create_access_token, create_refresh_token, decode_token
+from app.core.security import (
+    create_access_token,
+    create_refresh_token,
+    get_password_hash,
+    verify_password,
+)
 from app.models.user import User
 from app.repositories.user import UserRepository
 from app.schemas.user import UserCreate
-from app.schemas.token import TokenResponse
-from app.services.user import UserService
+from app.schemas.token import Token, TokenPair
 
 
 class AuthService:
-    """
-    Authentication service with business logic
-    """
+    """Authentication service with business logic"""
 
     def __init__(self, db: Session):
         self.db = db
-        self.user_repository = UserRepository(db)
-        self.user_service = UserService(db)
+        self.user_repo = UserRepository(db)
 
-    def register(self, user_in: UserCreate) -> Optional[User]:
-        """
-        Register a new user
+    def register(self, user_create: UserCreate) -> User:
+        """Register a new user"""
+        # Check if user already exists
+        existing_user = self.user_repo.get_by_email(user_create.email)
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered",
+            )
 
-        Args:
-            user_in: User registration data
+        # Check if username is taken
+        existing_username = self.user_repo.get_by_username(user_create.username)
+        if existing_username:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already taken",
+            )
 
-        Returns:
-            Created user or None if email exists
-        """
-        return self.user_service.create(user_in)
+        # Create user
+        hashed_password = get_password_hash(user_create.password)
+        user_data = {
+            "email": user_create.email,
+            "username": user_create.username,
+            "full_name": user_create.full_name,
+            "hashed_password": hashed_password,
+            "is_active": True,
+            "is_superuser": False,
+        }
 
-    def login(self, email: str, password: str) -> Optional[TokenResponse]:
-        """
-        Authenticate user and generate tokens
+        return self.user_repo.create(user_data)
 
-        Args:
-            email: User email
-            password: User password
+    def login(self, email: str, password: str) -> TokenPair:
+        """Login and return access and refresh tokens"""
+        user = self.user_repo.authenticate(email, password)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+            )
 
-        Returns:
-            Token response or None if authentication fails
-        """
-        # Get user by email
-        user = self.user_repository.get_by_email(email)
-
-        if user is None:
-            return None
-
-        # Verify password
-        if not verify_password(password, user.hashed_password):
-            return None
-
-        # Check if user is active
         if not user.is_active:
-            return None
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Inactive user",
+            )
 
-        # Generate tokens
-        access_token = create_access_token(
-            data={"sub": user.id},
-            expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        )
+        # Create tokens
+        access_token = create_access_token(data={"sub": user.id})
+        refresh_token = create_refresh_token(data={"sub": user.id})
 
-        refresh_token = create_refresh_token(
-            data={"sub": user.id},
-            expires_delta=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-        )
-
-        return TokenResponse(
+        return TokenPair(
             access_token=access_token,
             refresh_token=refresh_token,
             token_type="bearer",
-            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
         )
 
-    def refresh_token(self, refresh_token: str) -> Optional[TokenResponse]:
-        """
-        Refresh access token using refresh token
+    def refresh_access_token(self, user_id: int) -> Token:
+        """Create new access token from refresh token"""
+        user = self.user_repo.get(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+            )
 
-        Args:
-            refresh_token: Valid refresh token
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Inactive user",
+            )
 
-        Returns:
-            New token response or None if invalid
-        """
-        # Decode refresh token
-        payload = decode_token(refresh_token)
+        access_token = create_access_token(data={"sub": user.id})
+        return Token(access_token=access_token, token_type="bearer")
 
-        if payload is None:
-            return None
+    def change_password(
+        self, user: User, current_password: str, new_password: str
+    ) -> User:
+        """Change user password"""
+        if not verify_password(current_password, user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Incorrect password",
+            )
 
-        # Validate token type
-        if payload.get("type") != "refresh":
-            return None
-
-        # Get user ID
-        user_id = payload.get("sub")
-        if user_id is None:
-            return None
-
-        # Get user
-        user = self.user_repository.get(user_id)
-
-        if user is None or not user.is_active:
-            return None
-
-        # Generate new tokens
-        access_token = create_access_token(
-            data={"sub": user.id},
-            expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        )
-
-        new_refresh_token = create_refresh_token(
-            data={"sub": user.id},
-            expires_delta=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-        )
-
-        return TokenResponse(
-            access_token=access_token,
-            refresh_token=new_refresh_token,
-            token_type="bearer",
-            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        hashed_password = get_password_hash(new_password)
+        return self.user_repo.update(
+            user.id, {"hashed_password": hashed_password}
         )

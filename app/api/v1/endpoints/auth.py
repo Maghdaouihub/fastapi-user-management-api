@@ -78,6 +78,20 @@ def get_current_user_info(
     return current_user
 
 
+@router.post("/logout")
+def logout(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Logout current user
+
+    Note: For stateless JWT, this is a client-side operation.
+    The client should discard the tokens.
+    For enhanced security, implement token blacklisting with Redis.
+    """
+    return {"message": "Successfully logged out", "detail": "Please discard your tokens"}
+
+
 @router.post("/change-password", response_model=UserResponse)
 def change_password(
     current_password: str,

